@@ -20,7 +20,7 @@ const gratefulPenTable = glide.table({
   app: "hscl4V0VoiMpK9mxpx17",
   table: "native-table-SA33qmMpIzkczl6DMc0e",
   columns: {
-    inputNumber: { type: "number", name: "Name" },
+    inputNumber: { type: "number", name: "kqqtD" },
     response: { type: "string", name: "xmPst" },
     status: { type: "string", name: "4l7aC" }
   }
