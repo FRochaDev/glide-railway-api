@@ -6,25 +6,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const PORT = process.env.PORT || 3000;
+
 app.get("/", (req, res) => {
   res.json({
-    message: "API Flávio!",
-    app: "Glide + Railway",
-    timestamp: new Date().toISOString()
+    status: "online"
   });
 });
-
-app.post("/hello", (req, res) => {
-  const name = req.body.name || "Flávio";
-
-  res.json({
-    message: `Olá, ${name}!`,
-    received: req.body,
-    timestamp: new Date().toISOString()
-  });
-});
-
-const PORT = process.env.PORT || 3000;
 
 app.post("/multiply", (req, res) => {
 
