@@ -19,7 +19,7 @@ const DEPTS_TABLE = "native-table-21008154-b93a-4f15-b4f1-62c22ba70cd7";
 const LINE_ROW_ID = "$rowID";
 const LINE_DESCRIPTION = "22PNh";
 const LINE_PERIOD = "DW2Fx";
-const LINE_VALUE = "yGrYk";
+//const LINE_VALUE = "yGrYk";
 const LINE_INVOICE_IMPORT_ID = "waVXq";
 const LINE_DATE = "WT9Iw";
 const LINE_CLASSIFICATION = "WiJpe";
@@ -29,6 +29,7 @@ const LINE_STATUS = "0TgSg";
 const INVOICE_IMPORT_ID = "5rfPu";
 const INVOICE_NUMBER = "eJ2AW";
 const INVOICE_CLIENT = "gXYWJ";
+const INVOICE_TOTAL = "umVuQ";
 
 // Repartições
 const DEPT_LINE_ID = "NHe0i";
@@ -182,7 +183,7 @@ async function generateCsv(startPeriod, endPeriod) {
       line[LINE_INVOICE_IMPORT_ID]
     );
 
-const total = Number(line[LINE_VALUE] || 0);
+const total = Number(invoice?.[INVOICE_TOTAL] || 0);
 
 const hasRepartitions = deptSumByLineId.has(line[LINE_ROW_ID]);
 
