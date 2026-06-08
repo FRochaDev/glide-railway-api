@@ -1,75 +1,176 @@
 import express from "express";
 import cors from "cors";
-import * as glide from "@glideapps/tables";
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
 
 const PORT = process.env.PORT || 3000;
 
+const GLIDE_TOKEN = process.env.GLIDE_TOKEN;
+const APP_ID = "OdRQ0L0u80jqFb1hqqkt";
+
+const LINES_TABLE = "native-table-6ea5b163-55db-41a7-a2df-dff68f5f6bdc";
+const INVOICES_TABLE = "native-table-58a45d53-05cf-4eea-adde-2730ba12fae7";
+
+// Main table fields
+const LINE_DESCRIPTION = "22PNh";
+const LINE_PERIOD = "DW2Fx";
+const LINE_VALUE = "yGrYk";
+const LINE_INVOICE_IMPORT_ID = "waVXq";
+const LINE_CLIENT = "Goj0B";
+const LINE_DATE = "WT9Iw";
+const LINE_CLASSIFICATION = "3a1Pl";
+
+// Invoice table fields
+const INVOICE_IMPORT_ID = "5rfPu";
+const INVOICE_NUMBER = "eJ2AW";
+
 app.get("/", (req, res) => {
-  res.json({
-    status: "online"
+  res.json({ status: "online" });
+});
+
+async function queryGlide(sql, params = []) {
+  const response = await fetch("https://api.glideapp.io/api/function/queryTables", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${GLIDE_TOKEN}`
+    },
+    body: JSON.stringify({
+      appID: APP_ID,
+      queries: [{ sql, params }]
+    })
   });
-});
 
-const gratefulPenTable = glide.table({
-  token: process.env.GLIDE_TOKEN,
-  app: "hscl4V0VoiMpK9mxpx17",
-  table: "native-table-SA33qmMpIzkczl6DMc0e",
-  columns: {
-    inputNumber: { type: "number", name: "kqqtD" },
-    response: { type: "string", name: "xmPst" },
-    status: { type: "string", name: "4l7aC" }
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Glide query failed: ${response.status} - ${text}`);
   }
-});
 
-app.post("/multiply", async (req, res) => {
+  const data = await response.json();
 
+  return data?.[0]?.rows || data?.data?.[0]?.rows || data?.rows || [];
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function buildOrWhere(field, values) {
+  return values.map((_, index) => `"${field}" = $${index + 1}`).join(" OR ");
+}
+
+function csvValue(value) {
+  if (value === null || value === undefined) return "";
+
+  const text = String(value).replace(/"/g, '""');
+
+  return `"${text}"`;
+}
+
+app.post("/export-csv", async (req, res) => {
   try {
+    const { startPeriod, endPeriod } = req.body;
 
-    const value = Number(req.body.value || 0);
-    const result = value * 2;
-
-    const rowId = await gratefulPenTable.add({
-      inputNumber: value,
-      response: JSON.stringify({
-        result
-      }),
-      status: "200"
-    });
-
-    return res.status(200).json({
-      result
-    });
-
-  } catch (error) {
-
-    console.error("Error in /multiply:", error);
-
-    try {
-
-      await gratefulPenTable.add({
-        inputNumber: Number(req.body?.value || 0),
-        response: error.message,
-        status: String(error.status || 500)
+    if (!startPeriod || !endPeriod) {
+      return res.status(400).json({
+        error: true,
+        message: "startPeriod and endPeriod are required"
       });
-
-    } catch (glideError) {
-
-      console.error("Failed to write error to Glide:", glideError);
-
     }
 
-    return res.status(error.status || 500).json({
+    // 1. Buscar linhas principais
+    const lineRows = await queryGlide(
+      `SELECT * FROM "${LINES_TABLE}" WHERE "${LINE_PERIOD}" >= $1 AND "${LINE_PERIOD}" <= $2`,
+      [startPeriod, endPeriod]
+    );
+
+    // 2. Extrair IDs de faturas únicos
+    const invoiceImportIds = unique(
+      lineRows.map(row => row[LINE_INVOICE_IMPORT_ID])
+    );
+
+    let invoiceRows = [];
+
+    // 3. Buscar faturas relacionadas
+    if (invoiceImportIds.length > 0) {
+      const whereClause = buildOrWhere(INVOICE_IMPORT_ID, invoiceImportIds);
+
+      invoiceRows = await queryGlide(
+        `SELECT * FROM "${INVOICES_TABLE}" WHERE ${whereClause}`,
+        invoiceImportIds
+      );
+    }
+
+    // 4. Criar mapa para lookup rápido
+    const invoicesByImportId = new Map();
+
+    for (const invoice of invoiceRows) {
+      invoicesByImportId.set(invoice[INVOICE_IMPORT_ID], invoice);
+    }
+
+    // 5. Construir linhas finais
+    const csvRows = lineRows.map(line => {
+      const invoice = invoicesByImportId.get(line[LINE_INVOICE_IMPORT_ID]);
+
+      return {
+        Fatura: invoice?.[INVOICE_NUMBER] || "",
+        Data: line[LINE_DATE] || "",
+        Periodo: line[LINE_PERIOD] || "",
+        Cliente: line[LINE_CLIENT] || "",
+        Total: line[LINE_VALUE] || "",
+        Diferenca: "",
+        Classificacao: line[LINE_CLASSIFICATION] || "",
+        Descricao: line[LINE_DESCRIPTION] || ""
+      };
+    });
+
+    // 6. Gerar CSV
+    const header = [
+      "Fatura",
+      "Data",
+      "Periodo",
+      "Cliente",
+      "Total",
+      "Diferença",
+      "Classificação",
+      "Descrição"
+    ];
+
+    const csv = [
+      header.join(";"),
+      ...csvRows.map(row =>
+        [
+          csvValue(row.Fatura),
+          csvValue(row.Data),
+          csvValue(row.Periodo),
+          csvValue(row.Cliente),
+          csvValue(row.Total),
+          csvValue(row.Diferenca),
+          csvValue(row.Classificacao),
+          csvValue(row.Descricao)
+        ].join(";")
+      )
+    ].join("\n");
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="export-${startPeriod}-${endPeriod}.csv"`
+    );
+
+    return res.status(200).send(csv);
+
+  } catch (error) {
+    console.error("Error in /export-csv:", error);
+
+    return res.status(500).json({
       error: true,
       message: error.message
     });
-
   }
-
 });
 
 app.listen(PORT, () => {
