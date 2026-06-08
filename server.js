@@ -22,12 +22,12 @@ const LINE_DESCRIPTION = "22PNh";
 const LINE_PERIOD = "DW2Fx";
 const LINE_VALUE = "yGrYk";
 const LINE_INVOICE_IMPORT_ID = "waVXq";
-const LINE_CLIENT = "gXYWJ";
 const LINE_DATE = "WT9Iw";
 const LINE_CLASSIFICATION = "WiJpe";
 
 // Faturas
 const INVOICE_IMPORT_ID = "5rfPu";
+const INVOICE_CLIENT = "gXYWJ";
 const INVOICE_NUMBER = "eJ2AW";
 
 app.get("/", (req, res) => {
