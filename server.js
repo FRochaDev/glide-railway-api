@@ -71,6 +71,10 @@ function csvValue(value) {
 }
 
 app.post("/export-csv", async (req, res) => {
+
+  console.log("BODY:", req.body);
+   console.log("METHOD:", req.method);
+
   try {
     const { startPeriod, endPeriod } = req.body;
 
