@@ -183,24 +183,26 @@ async function generateCsv(startPeriod, endPeriod) {
       line[LINE_INVOICE_IMPORT_ID]
     );
 
-const total = Number(invoice?.[INVOICE_TOTAL] || 0);
+const totalDocumento = Number(invoice?.[INVOICE_TOTAL] || 0);
+const valorLinha = Number(line[LINE_VALUE] || 0);
 
-const hasRepartitions = deptSumByLineId.has(line[LINE_ROW_ID]);
+const hasRepartitions =
+  deptSumByLineId.has(line[LINE_ROW_ID]);
 
 const assignedTotal = Number(
   deptSumByLineId.get(line[LINE_ROW_ID]) || 0
 );
 
 const diferenca = hasRepartitions
-  ? roundMoney(assignedTotal)
-  : roundMoney(total);
+  ? roundMoney(valorLinha - assignedTotal)
+  : roundMoney(valorLinha);
 
     return {
       Fatura: invoice?.[INVOICE_NUMBER] || "",
       Data: line[LINE_DATE] || "",
       Periodo: line[LINE_PERIOD] || "",
       Cliente: invoice?.[INVOICE_CLIENT] || "",
-      Total: roundMoney(total),
+      Total: roundMoney(totalDocumento),
       Diferenca: diferenca,
       Classificacao: line[LINE_CLASSIFICATION] || "",
       Descricao: line[LINE_DESCRIPTION] || ""
