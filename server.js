@@ -109,6 +109,7 @@ async function generateCsv(startPeriod, endPeriod) {
      FROM "${LINES_TABLE}"
      WHERE "${LINE_PERIOD}" >= $1
      AND "${LINE_PERIOD}" <= $2`,
+     AND "0TgSg" = '🔴'`,
     [startPeriod, endPeriod]
   );
 
