@@ -22,9 +22,9 @@ const LINE_DESCRIPTION = "22PNh";
 const LINE_PERIOD = "DW2Fx";
 const LINE_VALUE = "yGrYk";
 const LINE_INVOICE_IMPORT_ID = "waVXq";
-const LINE_CLIENT = "Goj0B";
+const LINE_CLIENT = "gXYWJ";
 const LINE_DATE = "WT9Iw";
-const LINE_CLASSIFICATION = "3a1Pl";
+const LINE_CLASSIFICATION = "WiJpe";
 
 // Faturas
 const INVOICE_IMPORT_ID = "5rfPu";
@@ -104,14 +104,14 @@ function csvValue(value) {
 
 async function generateCsv(startPeriod, endPeriod) {
 
-  const lineRows = await queryGlide(
-    `SELECT *
-     FROM "${LINES_TABLE}"
-     WHERE "${LINE_PERIOD}" >= $1
-     AND "${LINE_PERIOD}" <= $2`,
-     AND "0TgSg" = '🔴'`,
-    [startPeriod, endPeriod]
-  );
+const lineRows = await queryGlide(
+  `SELECT *
+   FROM "${LINES_TABLE}"
+   WHERE "${LINE_PERIOD}" >= $1
+   AND "${LINE_PERIOD}" <= $2
+   AND "0TgSg" = '🔴'`,
+  [startPeriod, endPeriod]
+);
 
   const invoiceIds = unique(
     lineRows.map(
@@ -166,7 +166,7 @@ async function generateCsv(startPeriod, endPeriod) {
         line[LINE_PERIOD] || "",
 
       Cliente:
-        line[LINE_CLIENT] || "",
+      invoice?.[INVOICE_CLIENT] || "",
 
       Total:
         line[LINE_VALUE] || "",
