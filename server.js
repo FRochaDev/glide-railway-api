@@ -109,6 +109,7 @@ const lineRows = await queryGlide(
    FROM "${LINES_TABLE}"
    WHERE "${LINE_PERIOD}" >= $1
    AND "${LINE_PERIOD}" <= $2
+   AND "0TgSg" != '🟢'
    AND "${LINE_INVOICE_IMPORT_ID}" IS NOT NULL
    AND "${LINE_INVOICE_IMPORT_ID}" != ''`,
   [startPeriod, endPeriod]
