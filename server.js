@@ -11,24 +11,28 @@ const PORT = process.env.PORT || 3000;
 const GLIDE_TOKEN = process.env.GLIDE_TOKEN;
 const APP_ID = "OdRQ0L0u80jqFb1hqqkt";
 
-const LINES_TABLE =
-  "native-table-6ea5b163-55db-41a7-a2df-dff68f5f6bdc";
-
-const INVOICES_TABLE =
-  "native-table-58a45d53-05cf-4eea-adde-2730ba12fae7";
+const LINES_TABLE = "native-table-6ea5b163-55db-41a7-a2df-dff68f5f6bdc";
+const INVOICES_TABLE = "native-table-58a45d53-05cf-4eea-adde-2730ba12fae7";
+const DEPTS_TABLE = "native-table-21008154-b93a-4f15-b4f1-62c22ba70cd7";
 
 // Principal
+const LINE_ROW_ID = "$rowID";
 const LINE_DESCRIPTION = "22PNh";
 const LINE_PERIOD = "DW2Fx";
 const LINE_VALUE = "yGrYk";
 const LINE_INVOICE_IMPORT_ID = "waVXq";
 const LINE_DATE = "WT9Iw";
 const LINE_CLASSIFICATION = "WiJpe";
+const LINE_STATUS = "0TgSg";
 
 // Faturas
 const INVOICE_IMPORT_ID = "5rfPu";
-const INVOICE_CLIENT = "gXYWJ";
 const INVOICE_NUMBER = "eJ2AW";
+const INVOICE_CLIENT = "gXYWJ";
+
+// Repartições
+const DEPT_LINE_ID = "NHe0i";
+const DEPT_ASSIGNED_VALUE = "1mPSe";
 
 app.get("/", (req, res) => {
   res.json({
@@ -37,7 +41,6 @@ app.get("/", (req, res) => {
 });
 
 async function queryGlide(sql, params = []) {
-
   const response = await fetch(
     "https://api.glideapp.io/api/function/queryTables",
     {
@@ -59,13 +62,11 @@ async function queryGlide(sql, params = []) {
   );
 
   if (!response.ok) {
-
     const text = await response.text();
 
     throw new Error(
       `Glide query failed: ${response.status} - ${text}`
     );
-
   }
 
   const data = await response.json();
@@ -76,55 +77,49 @@ async function queryGlide(sql, params = []) {
     data?.rows ||
     []
   );
-
 }
 
 function unique(values) {
-
   return [...new Set(values.filter(Boolean))];
-
 }
 
 function buildOrWhere(field, values) {
-
   return values
     .map((_, index) => `"${field}" = $${index + 1}`)
     .join(" OR ");
-
 }
 
 function csvValue(value) {
-
-  if (value === null || value === undefined)
-    return "";
+  if (value === null || value === undefined) return "";
 
   return `"${String(value).replace(/"/g, '""')}"`;
+}
 
+function roundMoney(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 async function generateCsv(startPeriod, endPeriod) {
+  // 1. Buscar linhas principais filtradas por período, emoji vermelho e waVXq preenchido
+  const lineRows = await queryGlide(
+    `SELECT *
+     FROM "${LINES_TABLE}"
+     WHERE "${LINE_PERIOD}" >= $1
+     AND "${LINE_PERIOD}" <= $2
+     AND "${LINE_STATUS}" = '🔴'
+     AND "${LINE_INVOICE_IMPORT_ID}" IS NOT NULL
+     AND "${LINE_INVOICE_IMPORT_ID}" != ''`,
+    [startPeriod, endPeriod]
+  );
 
-const lineRows = await queryGlide(
-  `SELECT *
-   FROM "${LINES_TABLE}"
-   WHERE "${LINE_PERIOD}" >= $1
-   AND "${LINE_PERIOD}" <= $2
-   AND "0TgSg" != '🟢'
-   AND "${LINE_INVOICE_IMPORT_ID}" IS NOT NULL
-   AND "${LINE_INVOICE_IMPORT_ID}" != ''`,
-  [startPeriod, endPeriod]
-);
-
+  // 2. Buscar faturas relacionadas
   const invoiceIds = unique(
-    lineRows.map(
-      row => row[LINE_INVOICE_IMPORT_ID]
-    )
+    lineRows.map(row => row[LINE_INVOICE_IMPORT_ID])
   );
 
   let invoiceRows = [];
 
   if (invoiceIds.length > 0) {
-
     const whereClause = buildOrWhere(
       INVOICE_IMPORT_ID,
       invoiceIds
@@ -136,55 +131,82 @@ const lineRows = await queryGlide(
        WHERE ${whereClause}`,
       invoiceIds
     );
-
   }
 
   const invoicesByImportId = new Map();
 
   for (const invoice of invoiceRows) {
-
     invoicesByImportId.set(
       invoice[INVOICE_IMPORT_ID],
       invoice
     );
-
   }
 
-  const csvRows = lineRows.map(line => {
+  // 3. Buscar repartições relacionadas com as linhas principais
+  const lineIds = unique(
+    lineRows.map(row => row[LINE_ROW_ID])
+  );
 
-    const invoice =
-      invoicesByImportId.get(
-        line[LINE_INVOICE_IMPORT_ID]
-      );
+  let deptRows = [];
+
+  if (lineIds.length > 0) {
+    const deptWhereClause = buildOrWhere(
+      DEPT_LINE_ID,
+      lineIds
+    );
+
+    deptRows = await queryGlide(
+      `SELECT *
+       FROM "${DEPTS_TABLE}"
+       WHERE ${deptWhereClause}`,
+      lineIds
+    );
+  }
+
+  // 4. Somar repartições por InvLine
+  const deptSumByLineId = new Map();
+
+  for (const dept of deptRows) {
+    const lineId = dept[DEPT_LINE_ID];
+    const value = Number(dept[DEPT_ASSIGNED_VALUE] || 0);
+
+    deptSumByLineId.set(
+      lineId,
+      (deptSumByLineId.get(lineId) || 0) + value
+    );
+  }
+
+  // 5. Construir linhas finais
+  const csvRows = lineRows.map(line => {
+    const invoice = invoicesByImportId.get(
+      line[LINE_INVOICE_IMPORT_ID]
+    );
+
+const total = Number(line[LINE_VALUE] || 0);
+
+const hasRepartitions = deptSumByLineId.has(line[LINE_ROW_ID]);
+
+const assignedTotal = Number(
+  deptSumByLineId.get(line[LINE_ROW_ID]) || 0
+);
+
+const diferenca = hasRepartitions
+  ? roundMoney(assignedTotal)
+  : roundMoney(total);
 
     return {
-      Fatura:
-        invoice?.[INVOICE_NUMBER] || "",
-
-      Data:
-        line[LINE_DATE] || "",
-
-      Periodo:
-        line[LINE_PERIOD] || "",
-
-      Cliente:
-      invoice?.[INVOICE_CLIENT] || "",
-
-      Total:
-        line[LINE_VALUE] || "",
-
-      Diferenca:
-        "",
-
-      Classificacao:
-        line[LINE_CLASSIFICATION] || "",
-
-      Descricao:
-        line[LINE_DESCRIPTION] || ""
+      Fatura: invoice?.[INVOICE_NUMBER] || "",
+      Data: line[LINE_DATE] || "",
+      Periodo: line[LINE_PERIOD] || "",
+      Cliente: invoice?.[INVOICE_CLIENT] || "",
+      Total: roundMoney(total),
+      Diferenca: diferenca,
+      Classificacao: line[LINE_CLASSIFICATION] || "",
+      Descricao: line[LINE_DESCRIPTION] || ""
     };
-
   });
 
+  // 6. Gerar CSV
   const header = [
     "Fatura",
     "Data",
@@ -211,40 +233,26 @@ const lineRows = await queryGlide(
         csvValue(row.Descricao)
       ].join(";")
     )
-
   ].join("\n");
 
   return csv;
-
 }
 
 app.get("/download-csv", async (req, res) => {
-
   try {
-
-    const startPeriod =
-      req.query.startPeriod;
-
-    const endPeriod =
-      req.query.endPeriod;
+    const startPeriod = req.query.startPeriod;
+    const endPeriod = req.query.endPeriod;
 
     if (!startPeriod || !endPeriod) {
-
       return res.status(400).json({
         error: true,
-        message:
-          "startPeriod and endPeriod are required"
+        message: "startPeriod and endPeriod are required"
       });
-
     }
 
-    const csv = await generateCsv(
-      startPeriod,
-      endPeriod
-    );
+    const csv = await generateCsv(startPeriod, endPeriod);
 
-    const filename =
-      `export-${startPeriod}-${endPeriod}.csv`;
+    const filename = `export-${startPeriod}-${endPeriod}.csv`;
 
     res.setHeader(
       "Content-Type",
@@ -257,24 +265,16 @@ app.get("/download-csv", async (req, res) => {
     );
 
     return res.status(200).send(csv);
-
   } catch (error) {
-
     console.error(error);
 
     return res.status(500).json({
       error: true,
       message: error.message
     });
-
   }
-
 });
 
 app.listen(PORT, () => {
-
-  console.log(
-    `Server running on port ${PORT}`
-  );
-
+  console.log(`Server running on port ${PORT}`);
 });
