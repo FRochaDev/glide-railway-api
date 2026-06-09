@@ -333,7 +333,7 @@ app.get("/download-invoices-csv", async (req, res) => {
     ].join("\n");
 
     const filename =
-      `invoices-${startPeriod}-${endPeriod}.csv`;
+      `Faturas-${startPeriod}-${endPeriod}.csv`;
 
     res.setHeader(
       "Content-Type",
@@ -358,6 +358,84 @@ app.get("/download-invoices-csv", async (req, res) => {
 
   }
 
+});
+
+app.get("/download-repartitions-done-csv", async (req, res) => {
+  try {
+    const startPeriod = req.query.startPeriod;
+    const endPeriod = req.query.endPeriod;
+
+    if (!startPeriod || !endPeriod) {
+      return res.status(400).json({
+        error: true,
+        message: "startPeriod and endPeriod are required"
+      });
+    }
+
+    const rows = await queryGlide(
+      `SELECT *
+       FROM "native-table-21008154-b93a-4f15-b4f1-62c22ba70cd7"
+       WHERE "dRT14" >= $1
+       AND "dRT14" <= $2`,
+      [startPeriod, endPeriod]
+    );
+
+    const header = [
+      "Periodo",
+      "Data",
+      "%",
+      "Valor Atribuído",
+      "TotalDoc",
+      "DocNum",
+      "Descrição",
+      "Departamento",
+      "Partner",
+      "Classificação",
+      "Natureza"
+    ];
+
+    const csv = [
+      header.join(";"),
+
+      ...rows.map(row =>
+        [
+          csvValue(row["dRT14"]),
+          csvValue(row["QJWoS"]),
+          csvValue(row["Gka0L"]),
+          csvValue(row["1mPSe"]),
+          csvValue(row["R3XPM"]),
+          csvValue(row["z5Cgv"]),
+          csvValue(row["X5aUs"]),
+          csvValue(row["Y85OH"]),
+          csvValue(row["PfsKA"]),
+          csvValue(row["Zra8A"]),
+          csvValue(row["ksFIZ"])
+        ].join(";")
+      )
+    ].join("\n");
+
+    const filename = `Repartições-${startPeriod}-${endPeriod}.csv`;
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`
+    );
+
+    return res.status(200).send(csv);
+
+  } catch (error) {
+    console.error(error);
+
+    return res.status(500).json({
+      error: true,
+      message: error.message
+    });
+  }
 });
 
 app.listen(PORT, () => {
