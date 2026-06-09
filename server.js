@@ -241,7 +241,7 @@ const diferenca = hasRepartitions
   return csv;
 }
 
-app.get("/download-csv", async (req, res) => {
+app.get("/download-repartitions-csv", async (req, res) => {
   try {
     const startPeriod = req.query.startPeriod;
     const endPeriod = req.query.endPeriod;
@@ -255,7 +255,7 @@ app.get("/download-csv", async (req, res) => {
 
     const csv = await generateCsv(startPeriod, endPeriod);
 
-    const filename = `export-${startPeriod}-${endPeriod}.csv`;
+    const filename = `LinhasRepartição-${startPeriod}-${endPeriod}.csv`;
 
     res.setHeader(
       "Content-Type",
@@ -276,6 +276,87 @@ app.get("/download-csv", async (req, res) => {
       message: error.message
     });
   }
+});
+
+app.get("/download-invoices-csv", async (req, res) => {
+
+  try {
+
+    const startPeriod = req.query.startPeriod;
+    const endPeriod = req.query.endPeriod;
+
+    if (!startPeriod || !endPeriod) {
+
+      return res.status(400).json({
+        error: true,
+        message: "startPeriod and endPeriod are required"
+      });
+
+    }
+
+    const rows = await queryGlide(
+      `SELECT *
+       FROM "native-table-58a45d53-05cf-4eea-adde-2730ba12fae7"
+       WHERE "262As" >= $1
+       AND "262As" <= $2`,
+      [startPeriod, endPeriod]
+    );
+
+    const header = [
+      "Periodo",
+      "TotDoc",
+      "IVA",
+      "ClienteID",
+      "Nome Cliente",
+      "Data",
+      "Fact Nº",
+      "Descrição"
+    ];
+
+    const csv = [
+      header.join(";"),
+
+      ...rows.map(row =>
+        [
+          csvValue(row["262As"]),
+          csvValue(row["umVuQ"]),
+          csvValue(row["kEvZS"]),
+          csvValue(row["biits"]),
+          csvValue(row["gXYWJ"]),
+          csvValue(row["AEPfz"]),
+          csvValue(row["eJ2AW"]),
+          csvValue(row["RkU4z"])
+        ].join(";")
+      )
+
+    ].join("\n");
+
+    const filename =
+      `invoices-${startPeriod}-${endPeriod}.csv`;
+
+    res.setHeader(
+      "Content-Type",
+      "text/csv; charset=utf-8"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`
+    );
+
+    return res.status(200).send(csv);
+
+  } catch (error) {
+
+    console.error(error);
+
+    return res.status(500).json({
+      error: true,
+      message: error.message
+    });
+
+  }
+
 });
 
 app.listen(PORT, () => {
