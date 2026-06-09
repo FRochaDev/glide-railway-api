@@ -362,8 +362,10 @@ app.get("/download-invoices-csv", async (req, res) => {
 
 app.get("/download-repartitions-done-csv", async (req, res) => {
   try {
+
     const startPeriod = req.query.startPeriod;
     const endPeriod = req.query.endPeriod;
+    const type = req.query.type;
 
     if (!startPeriod || !endPeriod) {
       return res.status(400).json({
@@ -372,11 +374,23 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
       });
     }
 
+    let sql = `
+      SELECT *
+      FROM "native-table-21008154-b93a-4f15-b4f1-62c22ba70cd7"
+      WHERE "dRT14" >= $1
+      AND "dRT14" <= $2
+    `;
+
+    if (type === "billing") {
+      sql += ` AND "YsKXL" = true`;
+    }
+
+    if (type === "costs") {
+      sql += ` AND "YsKXL" = false`;
+    }
+
     const rows = await queryGlide(
-      `SELECT *
-       FROM "native-table-21008154-b93a-4f15-b4f1-62c22ba70cd7"
-       WHERE "dRT14" >= $1
-       AND "dRT14" <= $2`,
+      sql,
       [startPeriod, endPeriod]
     );
 
@@ -412,9 +426,11 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
           csvValue(row["ksFIZ"])
         ].join(";")
       )
+
     ].join("\n");
 
-    const filename = `Repartições-${startPeriod}-${endPeriod}.csv`;
+    const filename =
+      `Repartições-${type || "all"}-${startPeriod}-${endPeriod}.csv`;
 
     res.setHeader(
       "Content-Type",
@@ -429,12 +445,14 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
     return res.status(200).send(csv);
 
   } catch (error) {
+
     console.error(error);
 
     return res.status(500).json({
       error: true,
       message: error.message
     });
+
   }
 });
 
