@@ -299,7 +299,7 @@ app.get("/download-invoices-csv", async (req, res) => {
        FROM "native-table-58a45d53-05cf-4eea-adde-2730ba12fae7"
        WHERE "262As" >= $1
        AND "262As" <= $2
-       AND "5rfPu" != null`,
+       AND "5rfPu" IS NOT NULL`,
       [startPeriod, endPeriod]
     );
 
