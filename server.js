@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import * as glide from "@glideapps/tables";
 
 const app = express();
 
@@ -34,6 +35,34 @@ const INVOICE_TOTAL = "umVuQ";
 // Repartições
 const DEPT_LINE_ID = "NHe0i";
 const DEPT_ASSIGNED_VALUE = "1mPSe";
+
+const smileBDirectLinesTable = glide.table({
+  token: GLIDE_TOKEN,
+  app: APP_ID,
+  table: "native-table-26edbc4a-60e2-4aed-942b-40e2cca7ef5c",
+  columns: {
+    departmentId: { type: "string", name: "R8oF7" },
+    classId: { type: "string", name: "YwFZZ" }
+  }
+});
+
+const departamentosTable = glide.table({
+  token: GLIDE_TOKEN,
+  app: APP_ID,
+  table: "native-table-ChvXMAl4B9Bhpvye4TWl",
+  columns: {
+    deptName: { type: "string", name: "Name" }
+  }
+});
+
+const smileCostClassificationTable = glide.table({
+  token: GLIDE_TOKEN,
+  app: APP_ID,
+  table: "native-table-pPpr36loCWcPL0dAbQJO",
+  columns: {
+    name: { type: "string", name: "Name" }
+  }
+});
 
 app.get("/", (req, res) => {
   res.json({
@@ -362,7 +391,6 @@ app.get("/download-invoices-csv", async (req, res) => {
 
 app.get("/download-repartitions-done-csv", async (req, res) => {
   try {
-
     const startPeriod = req.query.startPeriod;
     const endPeriod = req.query.endPeriod;
     const type = req.query.type;
@@ -389,107 +417,41 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
       sql += ` AND "YsKXL" = false`;
     }
 
-    const rows = await queryGlide(
-      sql,
-      [startPeriod, endPeriod]
-    );
+    const rows = await queryGlide(sql, [
+      startPeriod,
+      endPeriod
+    ]);
 
-    // Buscar direct lines
-    const directIds = unique(
-      rows.map(row => row["7gBfB"])
-    );
+    const directRows =
+      await smileBDirectLinesTable.get();
 
-    let directRows = [];
+    const departmentRows =
+      await departamentosTable.get();
 
-    if (directIds.length > 0) {
-
-      const whereClause = buildOrWhere(
-        "$rowID",
-        directIds
-      );
-
-      directRows = await queryGlide(
-        `
-    SELECT *
-    FROM "native-table-26edbc4a-60e2-4aed-942b-40e2cca7ef5c"
-    WHERE ${whereClause}
-    `,
-        directIds
-      );
-
-    }
+    const classificationRows =
+      await smileCostClassificationTable.get();
 
     const directById = new Map();
 
     for (const row of directRows) {
-      directById.set(row["$rowID"], row);
-    }
-
-    // Buscar departamentos
-    const departmentIds = unique(
-      directRows.map(row => row["R8oF7"])
-    );
-
-    let departmentRows = [];
-
-    if (departmentIds.length > 0) {
-
-      const whereClause = buildOrWhere(
-        "$rowID",
-        departmentIds
-      );
-
-      departmentRows = await queryGlide(
-        `
-    SELECT *
-    FROM "native-table-ChvXMAl4B9Bhpvye4TWl"
-    WHERE ${whereClause}
-    `,
-        departmentIds
-      );
-
+      directById.set(row.$rowID, row);
     }
 
     const departmentsById = new Map();
 
     for (const row of departmentRows) {
       departmentsById.set(
-        row["$rowID"],
-        row["Name"]
+        row.$rowID,
+        row.deptName
       );
-    }
-
-    // Buscar classificações
-    const classificationIds = unique(
-      directRows.map(row => row["YwFZZ"])
-    );
-
-    let classificationRows = [];
-
-    if (classificationIds.length > 0) {
-
-      const whereClause = buildOrWhere(
-        "$rowID",
-        classificationIds
-      );
-
-      classificationRows = await queryGlide(
-        `
-    SELECT *
-    FROM "native-table-pPpr36loCWcPL0dAbQJO"
-    WHERE ${whereClause}
-    `,
-        classificationIds
-      );
-
     }
 
     const classificationsById = new Map();
 
     for (const row of classificationRows) {
       classificationsById.set(
-        row["$rowID"],
-        row["Name"]
+        row.$rowID,
+        row.name
       );
     }
 
@@ -511,20 +473,19 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
       header.join(";"),
 
       ...rows.map(row => {
-
         const directLine =
           directById.get(row["7gBfB"]);
 
         const department = directLine
           ? departmentsById.get(
-            directLine["R8oF7"]
-          ) || ""
+              directLine.departmentId
+            ) || ""
           : row["Y85OH"];
 
         const classification = directLine
           ? classificationsById.get(
-            directLine["YwFZZ"]
-          ) || ""
+              directLine.classId
+            ) || ""
           : row["Zra8A"];
 
         return [
@@ -540,9 +501,9 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
           csvValue(classification),
           csvValue(row["ksFIZ"])
         ].join(";");
-
       })
-   ].join("\n");
+
+    ].join("\n");
 
     const filename =
       `Repartições-${type || "all"}-${startPeriod}-${endPeriod}.csv`;
@@ -560,14 +521,12 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
     return res.status(200).send(csv);
 
   } catch (error) {
-
     console.error(error);
 
     return res.status(500).json({
       error: true,
       message: error.message
     });
-
   }
 });
 
