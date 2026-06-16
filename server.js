@@ -183,19 +183,19 @@ async function generateCsv(startPeriod, endPeriod) {
       line[LINE_INVOICE_IMPORT_ID]
     );
 
-const totalDocumento = Number(invoice?.[INVOICE_TOTAL] || 0);
-const valorLinha = Number(line[LINE_VALUE] || 0);
+    const totalDocumento = Number(invoice?.[INVOICE_TOTAL] || 0);
+    const valorLinha = Number(line[LINE_VALUE] || 0);
 
-const hasRepartitions =
-  deptSumByLineId.has(line[LINE_ROW_ID]);
+    const hasRepartitions =
+      deptSumByLineId.has(line[LINE_ROW_ID]);
 
-const assignedTotal = Number(
-  deptSumByLineId.get(line[LINE_ROW_ID]) || 0
-);
+    const assignedTotal = Number(
+      deptSumByLineId.get(line[LINE_ROW_ID]) || 0
+    );
 
-const diferenca = hasRepartitions
-  ? roundMoney(valorLinha - assignedTotal)
-  : roundMoney(valorLinha);
+    const diferenca = hasRepartitions
+      ? roundMoney(valorLinha - assignedTotal)
+      : roundMoney(valorLinha);
 
     return {
       Fatura: invoice?.[INVOICE_NUMBER] || "",
@@ -394,6 +394,105 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
       [startPeriod, endPeriod]
     );
 
+    // Buscar direct lines
+    const directIds = unique(
+      rows.map(row => row["7gBfB"])
+    );
+
+    let directRows = [];
+
+    if (directIds.length > 0) {
+
+      const whereClause = buildOrWhere(
+        "$rowID",
+        directIds
+      );
+
+      directRows = await queryGlide(
+        `
+    SELECT *
+    FROM "native-table-26edbc4a-60e2-4aed-942b-40e2cca7ef5c"
+    WHERE ${whereClause}
+    `,
+        directIds
+      );
+
+    }
+
+    const directById = new Map();
+
+    for (const row of directRows) {
+      directById.set(row["$rowID"], row);
+    }
+
+    // Buscar departamentos
+    const departmentIds = unique(
+      directRows.map(row => row["R8oF7"])
+    );
+
+    let departmentRows = [];
+
+    if (departmentIds.length > 0) {
+
+      const whereClause = buildOrWhere(
+        "$rowID",
+        departmentIds
+      );
+
+      departmentRows = await queryGlide(
+        `
+    SELECT *
+    FROM "native-table-ChvXMAl4B9Bhpvye4TWl"
+    WHERE ${whereClause}
+    `,
+        departmentIds
+      );
+
+    }
+
+    const departmentsById = new Map();
+
+    for (const row of departmentRows) {
+      departmentsById.set(
+        row["$rowID"],
+        row["Name"]
+      );
+    }
+
+    // Buscar classificações
+    const classificationIds = unique(
+      directRows.map(row => row["YwFZZ"])
+    );
+
+    let classificationRows = [];
+
+    if (classificationIds.length > 0) {
+
+      const whereClause = buildOrWhere(
+        "$rowID",
+        classificationIds
+      );
+
+      classificationRows = await queryGlide(
+        `
+    SELECT *
+    FROM "native-table-pPpr36loCWcPL0dAbQJO"
+    WHERE ${whereClause}
+    `,
+        classificationIds
+      );
+
+    }
+
+    const classificationsById = new Map();
+
+    for (const row of classificationRows) {
+      classificationsById.set(
+        row["$rowID"],
+        row["Name"]
+      );
+    }
+
     const header = [
       "Periodo",
       "Data",
@@ -411,8 +510,24 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
     const csv = [
       header.join(";"),
 
-      ...rows.map(row =>
-        [
+      ...rows.map(row => {
+
+        const directLine =
+          directById.get(row["7gBfB"]);
+
+        const department = directLine
+          ? departmentsById.get(
+            directLine["R8oF7"]
+          ) || ""
+          : row["Y85OH"];
+
+        const classification = directLine
+          ? classificationsById.get(
+            directLine["YwFZZ"]
+          ) || ""
+          : row["Zra8A"];
+
+        return [
           csvValue(row["dRT14"]),
           csvValue(row["QJWoS"]),
           csvValue(row["Gka0L"]),
@@ -420,14 +535,14 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
           csvValue(row["R3XPM"]),
           csvValue(row["z5Cgv"]),
           csvValue(row["X5aUs"]),
-          csvValue(row["Y85OH"]),
+          csvValue(department),
           csvValue(row["PfsKA"]),
-          csvValue(row["Zra8A"]),
+          csvValue(classification),
           csvValue(row["ksFIZ"])
-        ].join(";")
-      )
+        ].join(";");
 
-    ].join("\n");
+      })
+   ].join("\n");
 
     const filename =
       `Repartições-${type || "all"}-${startPeriod}-${endPeriod}.csv`;
