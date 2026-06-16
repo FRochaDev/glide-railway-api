@@ -475,20 +475,18 @@ console.log(JSON.stringify(rows[0], null, 2));
       header.join(";"),
 
       ...rows.map(row => {
-        const directLine =
-          directById.get(row["7gBfB"]);
+const directLine =
+  directById.get(row["7gBfB"]);
 
-        const department = directLine
-          ? departmentsById.get(
-              directLine.departmentId
-            ) || ""
-          : row["Y85OH"];
+const department =
+  departmentsById.get(row["0tQoV"]) || "";
 
-        const classification = directLine
-          ? classificationsById.get(
-              directLine.classId
-            ) || ""
-          : row["Zra8A"];
+const classificationId = directLine
+  ? directLine.classId
+  : row["zL3dh"];
+
+const classification =
+  classificationsById.get(classificationId) || "";
 
         return [
           csvValue(row["dRT14"]),
