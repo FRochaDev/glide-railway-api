@@ -421,6 +421,8 @@ app.get("/download-repartitions-done-csv", async (req, res) => {
       startPeriod,
       endPeriod
     ]);
+    console.log("FIRST ROW");
+console.log(JSON.stringify(rows[0], null, 2));
 
     const directRows =
       await smileBDirectLinesTable.get();
